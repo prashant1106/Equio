@@ -8,11 +8,12 @@ const Layout = async ({ children }: { children : React.ReactNode }) => {
   const session = await auth.api.getSession({ headers: await headers() })
 
   if(session?.user) redirect('/')
+
   return (
     <main className="auth-layout">
       <section className="auth-left-section scrollbar-hide-default">
         <Link href="/" className="auth-logo">
-          <Image src="/assets/icons/logo.svg" alt="Equiologo" width={120} height={32} className='h-8 w-auto' />
+        <Image src="/assets/icons/logo.svg" alt="Equio logo" width={160} height={48} priority className="h-12 sm:h-14 w-auto cursor-pointer -mt-8"/>
         </Link>
 
         <div className="pb-6 lg:pb-8 flex-1">{children}</div>
