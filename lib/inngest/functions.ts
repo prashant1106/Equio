@@ -51,22 +51,18 @@ export const sendDailyNewsSummary = inngest.createFunction(
   { id: 'daily-new-summary' },
   [ { event: 'app/send.daily.news' }, { cron: '0 12 * * *'} ],
   async ({step}) => {
-    // Step #1: Get all users for news delivery
     const users = await step.run('get-all-users', getAllUsersForNewsEmail)
 
     if(!users || users.length === 0) return { success: false, message: 'No users found for news email' };
     
     
-    // Step #2: Fetch personalized news for each users
     const results = await step.run('fetch-user-news', async () => {
-            const perUser: Array<{ user: UserForNewsEmail; articles: MarketNewsArticle[] }> = [];
-            for (const user of users as UserForNewsEmail[]) {
+            const perUser: Array<{ user: User; articles: MarketNewsArticle[] }> = [];
+            for (const user of users as User[]) {
                 try {
                     const symbols = await getWatchlistSymbolsByEmail(user.email);
                     let articles = await getNews(symbols);
-                    // Enforce max 6 articles per user
                     articles = (articles || []).slice(0, 6);
-                    // If still empty, fallback to general
                     if (!articles || articles.length === 0) {
                         articles = await getNews();
                         articles = (articles || []).slice(0, 6);
@@ -80,9 +76,7 @@ export const sendDailyNewsSummary = inngest.createFunction(
             return perUser;
         });
 
-
-    // Step #3: Summarize news via AI for each user
-    const userNewsSummaries: { user: UserForNewsEmail; newsContent: string | null }[] = [];
+    const userNewsSummaries: { user: User; newsContent: string | null }[] = [];
 
     for (const { user, articles } of results) {
         try {
@@ -106,7 +100,6 @@ export const sendDailyNewsSummary = inngest.createFunction(
     }
 
 
-    // Step #4: Send emails
     await step.run('send-news-emails', async () => {
         await Promise.all(
             userNewsSummaries.map(async ({ user, newsContent}) => {
