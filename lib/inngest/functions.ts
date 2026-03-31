@@ -49,6 +49,7 @@ export const sendSignUpEmail = inngest.createFunction(
 
 export const sendDailyNewsSummary = inngest.createFunction(
   { id: 'daily-new-summary' },
+  //[ { event: 'app/send.daily.news' }, { cron: '*/2 * * * *'} ],
   [ { event: 'app/send.daily.news' }, { cron: '0 12 * * *'} ],
   async ({step}) => {
     const users = await step.run('get-all-users', getAllUsersForNewsEmail)
@@ -57,56 +58,56 @@ export const sendDailyNewsSummary = inngest.createFunction(
     
     
     const results = await step.run('fetch-user-news', async () => {
-            const perUser: Array<{ user: User; articles: MarketNewsArticle[] }> = [];
-            for (const user of users as User[]) {
-                try {
-                    const symbols = await getWatchlistSymbolsByEmail(user.email);
-                    let articles = await getNews(symbols);
-                    articles = (articles || []).slice(0, 6);
-                    if (!articles || articles.length === 0) {
-                        articles = await getNews();
-                        articles = (articles || []).slice(0, 6);
-                    }
-                    perUser.push({ user, articles });
-                } catch (e) {
-                    console.error('daily-news: error preparing user news', user.email, e);
-                    perUser.push({ user, articles: [] });
-                }
-            }
-            return perUser;
-        });
+      const perUser: Array<{ user: User; articles: MarketNewsArticle[] }> = [];
+        for (const user of users as User[]) {
+          try {
+            const symbols = await getWatchlistSymbolsByEmail(user.email);
+              let articles = await getNews(symbols);
+              articles = (articles || []).slice(0, 6);
+              
+              if (!articles || articles.length === 0) {
+                articles = await getNews();
+                articles = (articles || []).slice(0, 6);
+              }
+              perUser.push({ user, articles });
+          } catch (e) {
+            console.error('daily-news: error preparing user news', user.email, e);
+            perUser.push({ user, articles: [] });
+          }
+        }
+        return perUser;
+      });
 
     const userNewsSummaries: { user: User; newsContent: string | null }[] = [];
 
     for (const { user, articles } of results) {
-        try {
-            const prompt = NEWS_SUMMARY_EMAIL_PROMPT.replace('{{newsData}}', JSON.stringify(articles, null, 2));
+      try {
+        const prompt = NEWS_SUMMARY_EMAIL_PROMPT.replace('{{newsData}}', JSON.stringify(articles, null, 2));
 
-            const response = await step.ai.infer(`summarize-news-${user.email}`, {
-                model: step.ai.models.gemini({ model: 'gemini-2.5-flash-lite' }),
-                body: {
-                    contents: [{ role: 'user', parts: [{ text:prompt }]}]
-                }
-            });
+        const response = await step.ai.infer(`summarize-news-${user.email}`, {
+          model: step.ai.models.gemini({ model: 'gemini-2.5-flash-lite' }),
+          body: {
+            contents: [{ role: 'user', parts: [{ text:prompt }]}]
+          }
+        });
 
-            const part = response.candidates?.[0]?.content?.parts?.[0];
-            const newsContent = (part && 'text' in part ? part.text : null) || 'No market news.'
+        const part = response.candidates?.[0]?.content?.parts?.[0];
+        const newsContent = (part && 'text' in part ? part.text : null) || 'No market news.'
 
-            userNewsSummaries.push({ user, newsContent });
-        } catch (e) {
-            console.error('Failed to summarize news for : ', user.email);
-            userNewsSummaries.push({ user, newsContent: null });
-        }
+        userNewsSummaries.push({ user, newsContent });
+      } catch (e) {
+        console.error('Failed to summarize news for : ', user.email);
+        userNewsSummaries.push({ user, newsContent: null });
+      }
     }
 
-
     await step.run('send-news-emails', async () => {
-        await Promise.all(
-            userNewsSummaries.map(async ({ user, newsContent}) => {
-                if(!newsContent) return false;
-                return await sendNewsSummaryEmail({ email: user.email, date: getFormattedTodayDate(), newsContent })
-            })
-        )
+      await Promise.all(
+        userNewsSummaries.map(async ({ user, newsContent}) => {
+          if(!newsContent) return false;
+            return await sendNewsSummaryEmail({ email: user.email, date: getFormattedTodayDate(), newsContent })
+          })
+      )
     })
 
     return { success: true, message: 'Daily news summary emails sent successfully' }
