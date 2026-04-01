@@ -32,7 +32,7 @@ export const getAuth = async () => {
       }
     },
     plugins: [nextCookies()],
-  });
+  }) as any;
 
   return authInstance;
 }
