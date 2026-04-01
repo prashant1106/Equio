@@ -1,5 +1,7 @@
 "use client";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { addToWatchlist, removeFromWatchlist } from "@/lib/actions/watchlist.actions";
 
 // Minimal WatchlistButton implementation to satisfy page requirements.
 // This component focuses on UI contract only. It toggles local state and
@@ -14,6 +16,8 @@ const WatchlistButton = ({
   onWatchlistChange,
 }: WatchlistButtonProps) => {
   const [added, setAdded] = useState<boolean>(!!isInWatchlist);
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   const label = useMemo(() => {
     if (type === "icon") return added ? "" : "";
@@ -21,9 +25,24 @@ const WatchlistButton = ({
   }, [added, type]);
 
   const handleClick = () => {
+    if (isPending) return;
     const next = !added;
     setAdded(next);
-    onWatchlistChange?.(symbol, next);
+
+    startTransition(async () => {
+      try {
+        if (next) {
+          await addToWatchlist({ symbol, company });
+        } else {
+          await removeFromWatchlist(symbol);
+        }
+        onWatchlistChange?.(symbol, next);
+        router.refresh();
+      } catch (e) {
+        console.error(e);
+        setAdded(!next); // Revert on failure
+      }
+    });
   };
 
   if (type === "icon") {

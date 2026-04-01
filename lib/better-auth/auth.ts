@@ -25,10 +25,16 @@ export const getAuth = async () => {
       maxPasswordLength: 128,
       autoSignIn: true,
     },
+    socialProviders: {
+      google: {
+        clientId: process.env.GOOGLE_CLIENT_ID as string,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+      }
+    },
     plugins: [nextCookies()],
   });
 
   return authInstance;
 }
 
-export const auth = await getAuth();
+export const auth = (await getAuth()) as any;

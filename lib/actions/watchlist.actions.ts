@@ -26,3 +26,67 @@ export async function getWatchlistSymbolsByEmail(email: string): Promise<string[
     return [];
   }
 }
+
+export async function getWatchlist() {
+  try {
+    const { auth } = await import('@/lib/better-auth/auth');
+    const { headers } = await import('next/headers');
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user?.id) throw new Error("Unauthorized");
+    
+    await connectToDatabase();
+    
+    const watchlist = await Watchlist.find({ userId: session.user.id }).sort({ addedAt: -1 }).lean();
+    return JSON.parse(JSON.stringify(watchlist));
+  } catch (error) {
+    console.error("Error fetching watchlist:", error);
+    return [];
+  }
+}
+
+export async function addToWatchlist({ symbol, company }: { symbol: string, company: string }) {
+  try {
+    const { auth } = await import('@/lib/better-auth/auth');
+    const { headers } = await import('next/headers');
+    const { revalidatePath } = await import('next/cache');
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user?.id) throw new Error("Unauthorized");
+
+    await connectToDatabase();
+
+    const existing = await Watchlist.findOne({ userId: session.user.id, symbol: symbol.toUpperCase() });
+    if (existing) return { success: true, message: "Already in watchlist" };
+
+    await Watchlist.create({
+      userId: session.user.id,
+      symbol: symbol.toUpperCase(),
+      company
+    });
+
+    revalidatePath('/watchlist');
+    return { success: true };
+  } catch (error) {
+    console.error("Error adding to watchlist:", error);
+    return { success: false, error: "Failed to add to watchlist" };
+  }
+}
+
+export async function removeFromWatchlist(symbol: string) {
+  try {
+    const { auth } = await import('@/lib/better-auth/auth');
+    const { headers } = await import('next/headers');
+    const { revalidatePath } = await import('next/cache');
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user?.id) throw new Error("Unauthorized");
+
+    await connectToDatabase();
+
+    await Watchlist.deleteOne({ userId: session.user.id, symbol: symbol.toUpperCase() });
+
+    revalidatePath('/watchlist');
+    return { success: true };
+  } catch (error) {
+    console.error("Error removing from watchlist:", error);
+    return { success: false, error: "Failed to remove from watchlist" };
+  }
+}

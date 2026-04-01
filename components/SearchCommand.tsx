@@ -1,18 +1,69 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useTransition } from "react"
 import { CommandDialog, CommandEmpty, CommandInput, CommandList } from "@/components/ui/command"
 import {Button} from "@/components/ui/button";
-import {Loader2,  TrendingUp} from "lucide-react";
+import {Loader2,  TrendingUp, Star} from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {searchStocks} from "@/lib/actions/finnhub.actions";
 import {useDebounce} from "@/hooks/useDebounce";
+import { addToWatchlist, removeFromWatchlist, getWatchlist } from "@/lib/actions/watchlist.actions";
 
 export default function SearchCommand({ renderAs = 'button', label = 'Add stock', initialStocks }: SearchCommandProps) {
   const [open, setOpen] = useState(false)
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("")
   const [loading, setLoading] = useState(false)
   const [stocks, setStocks] = useState<StockWithWatchlistStatus[]>(initialStocks);
+  const [watchlisted, setWatchlisted] = useState<string[]>([]);
+  const [toggling, setToggling] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    getWatchlist().then((list: any[]) => {
+      if (list && Array.isArray(list)) {
+        setWatchlisted(list.map((item) => item.symbol));
+      }
+    }).catch(console.error);
+  }, [open]);
+
+  const handleToggleWatchlist = (e: React.MouseEvent, stock: any) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (toggling) return;
+
+    setToggling(stock.symbol);
+    const isWatchlisted = watchlisted.includes(stock.symbol);
+
+    // Optimistic UI update
+    if (isWatchlisted) {
+      setWatchlisted(prev => prev.filter(s => s !== stock.symbol));
+    } else {
+      setWatchlisted(prev => [...prev, stock.symbol]);
+    }
+
+    startTransition(async () => {
+      try {
+        if (isWatchlisted) {
+          await removeFromWatchlist(stock.symbol);
+        } else {
+          await addToWatchlist({ symbol: stock.symbol, company: stock.name });
+        }
+        router.refresh();
+      } catch (e) {
+        console.error(e);
+        // Revert optimistic update on error
+        if (isWatchlisted) {
+          setWatchlisted(prev => [...prev, stock.symbol]);
+        } else {
+          setWatchlisted(prev => prev.filter(s => s !== stock.symbol));
+        }
+      } finally {
+        setToggling(null);
+      }
+    });
+  };
 
   const isSearchMode = !!searchTerm.trim();
   const displayStocks = isSearchMode ? stocks : stocks?.slice(0, 10);
@@ -84,14 +135,14 @@ export default function SearchCommand({ renderAs = 'button', label = 'Add stock'
                 {` `}({displayStocks?.length || 0})
               </div>
               {displayStocks?.map((stock, i) => (
-                  <li key={stock.symbol} className="search-item">
+                  <li key={`${stock.symbol}-${stock.exchange || 'idx'}-${i}`} className="search-item group flex items-center pr-2">
                     <Link
                         href={`/stocks/${stock.symbol}`}
                         onClick={handleSelectStock}
-                        className="search-item-link"
+                        className="search-item-link flex-1"
                     >
                       <TrendingUp className="h-4 w-4 text-gray-500" />
-                      <div  className="flex-1">
+                      <div className="flex-1">
                         <div className="search-item-name">
                           {stock.name}
                         </div>
@@ -99,8 +150,19 @@ export default function SearchCommand({ renderAs = 'button', label = 'Add stock'
                           {stock.symbol} | {stock.exchange } | {stock.type}
                         </div>
                       </div>
-                    {/*<Star />*/}
                     </Link>
+                    <button 
+                      type="button"
+                      onClick={(e) => handleToggleWatchlist(e, stock)}
+                      className="p-2 hover:bg-neutral-800 rounded-full transition-colors flex-shrink-0"
+                      disabled={toggling === stock.symbol}
+                    >
+                      {toggling === stock.symbol ? (
+                         <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                      ) : (
+                         <Star className={`h-5 w-5 ${watchlisted.includes(stock.symbol) ? 'fill-yellow-500 text-yellow-500' : 'text-gray-400'}`} />
+                      )}
+                    </button>
                   </li>
               ))}
             </ul>
