@@ -1,4 +1,4 @@
-import { betterAuth } from "better-auth";
+import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { connectToDatabase } from "@/database/mongoose";
 import { nextCookies } from "better-auth/next-js";
@@ -13,7 +13,7 @@ export const getAuth = async () => {
 
   if (!db) throw new Error('MongoDB connection not found');
 
-  authInstance = betterAuth({
+  const options: BetterAuthOptions = {
     database: mongodbAdapter(db as any),
     secret: process.env.BETTER_AUTH_SECRET,
     baseURL: process.env.NEXT_PUBLIC_BASE_URL || process.env.BETTER_AUTH_URL,
@@ -31,8 +31,16 @@ export const getAuth = async () => {
       maxPasswordLength: 128,
       autoSignIn: true,
     },
+    socialProviders: {
+      google: {
+        clientId: process.env.GOOGLE_CLIENT_ID as string,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+      }
+    },
     plugins: [nextCookies()],
-  });
+  };
+
+  authInstance = betterAuth(options);
 
   return authInstance;
 }
