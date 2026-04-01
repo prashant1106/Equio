@@ -44,7 +44,7 @@ const SignIn = () => {
         <InputField
           name="email"
           label="Email"
-          placeholder="equio747@gmail.com"
+          placeholder="Enter your Email"
           register={register}
           error={errors.email}
           validation={{ required: 'Email is required', pattern: /^\w+@\w+\.\w+$/ }}
@@ -72,7 +72,8 @@ const SignIn = () => {
               try {
                  await authClient.signIn.social({ provider: 'google', callbackURL: '/' });
               } catch (e) {
-                 toast.error('Google Server Error', { description: 'Ensure your API keys are configured.' });
+                console.log(e);
+                toast.error('Google Server Error', { description: 'Ensure your API keys are configured.' });
               }
             }}
           >
